@@ -26,7 +26,6 @@ pub fn parse_message(raw: &[u8]) -> Result<Message, &'static str> {
     let vectorized_raw = raw.to_vec();
     let mut peekable_raw = vectorized_raw.iter().peekable();
 
-    println!("=====");
     while peekable_raw.peek().is_some() {
         let current_char = peekable_raw.next().unwrap();
         match *current_char as char {
@@ -60,10 +59,6 @@ pub fn parse_message(raw: &[u8]) -> Result<Message, &'static str> {
     }
 
     let parameters: Vec<String> = parse_parameters(raw_parameters);
-    println!(
-        "Source: {}\nCommand: {}\nParameters: {:?}\n",
-        source, command, parameters
-    );
 
     let message = Message {
         source: Some(source),

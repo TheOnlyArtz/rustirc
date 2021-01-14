@@ -1,12 +1,13 @@
 use async_trait::async_trait;
 use std::error::Error;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::io::BufReader;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
+use tokio::sync::Mutex;
 
 #[path = "./message_parser.rs"]
-mod message_parser;
+pub mod message_parser;
 // use tokio::net::tcp::{ReadHalf, WriteHalf};
 pub struct Client {
     ip: String,
@@ -43,32 +44,75 @@ impl Client {
         Ok(self)
     }
 
-    pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn start(&mut self, username: &str) -> Result<(), Box<dyn Error>> {
         let event_handler = self.event_handler.take().unwrap();
-        let stream = Arc::clone(&self.stream.as_ref().unwrap());
-        let mut s = stream.try_lock().unwrap();
-        
-        loop {
-            let message = s.consume_message().await.unwrap();
+        let mut sent_reg = false;
+        tokio::spawn(async {});
 
-            println!("{:?}", message_parser::parse_message(&message.0));
-            event_handler.test().await;
+        loop {
+            let stream = Arc::clone(&self.stream.as_ref().unwrap());
+            let mut s = stream.try_lock().unwrap();
+            let message = s.consume_message().await.unwrap();
+            std::mem::drop(s);
+            let message = message_parser::parse_message(&message.0).unwrap();
+            let command = &message.command[..];
+
+            if message.command.len() == 0 {
+                break;
+            }
+
+            match command {
+                "NOTICE" => {
+                    if !sent_reg {
+                        self.register(username).await?;
+                        println!("Sent register");
+                    }
+                    sent_reg = true;
+                }
+                "376" => {
+                    self.join_channel("channel").await?;
+                }
+                "PRIVMSG" => {
+                    event_handler.on_message_sent(self, message).await;
+                }
+                "PING" => {
+                    self.send_pong().await?;
+                    println!("SENT {:?}", message);
+                }
+                _ => {
+                    println!("{:?}", message);
+                }
+            }
         }
 
-        // Ok(())
+        Ok(())
+    }
+
+    pub async fn register(&mut self, username: &str) -> Result<(), Box<dyn Error>> {
+        send_socket_message(self, &format!("PASS {}", username)).await?;
+        send_socket_message(self, &format!("NICK {}", username)).await?;
+        send_socket_message(self, &format!("USER guest * 0 :{}", username)).await?;
+        Ok(())
+    }
+    pub async fn join_channel(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
+        send_socket_message(self, &format!("JOIN #{}", name)).await?;
+        Ok(())
+    }
+
+    pub async fn send_message(&mut self, msg: String) -> Result<(), Box<dyn Error>> {
+        send_socket_message(self, &format!("PRIVMSG #channel {}", msg)).await?;
+        Ok(())
+    }
+
+    pub async fn send_pong(&mut self) -> Result<(), Box<dyn Error>> {
+        send_socket_message(self, "PONG").await?;
+        Ok(())
     }
 }
 
 #[async_trait]
 pub trait EventHandler: Send + Sync {
-    async fn test(&self) {}
-}
-
-async fn dispatch(event_handler: &Option<Arc<dyn EventHandler>>) {
-    match event_handler {
-        Some(eh) => eh.test().await,
-        None => {}
-    }
+    async fn on_message_sent(&self, client: &mut Client, params: message_parser::Message) {}
 }
 
 pub struct IrcStream<S> {
@@ -95,8 +139,18 @@ impl<S: AsyncRead + AsyncWrite + Unpin> IrcStream<S> {
         Ok((buf, test))
     }
 
-    pub async fn write_all(&mut self, test: &[u8]) -> Result<(), Box<dyn Error>> {
-        self.reader.write(test).await?;
+    pub async fn write_all(&mut self, test: &str) -> Result<(), Box<dyn Error>> {
+        self.reader
+            .write(&format!("{}\r\n", test)[..].as_bytes())
+            .await?;
         Ok(())
     }
+}
+
+pub async fn send_socket_message(client: &mut Client, msg: &str) -> Result<(), Box<dyn Error>> {
+    let stream = Arc::clone(client.stream.as_ref().unwrap());
+    let mut s = stream.try_lock().unwrap();
+
+    s.write_all(msg).await?;
+    Ok(())
 }
