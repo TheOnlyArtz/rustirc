@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Message {
     pub source: Option<String>,
     pub command: String,
