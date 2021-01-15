@@ -13,6 +13,7 @@ pub enum ClientState {
     Uninit,
     Connecting,
     Registering,
+    InServer,
     InChannel,
 }
 
@@ -62,35 +63,6 @@ impl Client {
                 eprintln!("Error: {}", e);
                 break
             }
-
-            // if message.command.len() == 0 {
-            //     break;
-            // }
-
-            // match command {
-            //     "NOTICE" => {
-            //         println!("{:?}", message);
-            //         if !sent_reg {
-            //             // self.register(username).await?;
-
-            //             // println!("Sent register");
-            //         }
-            //         sent_reg = true;
-            //     }
-            //     "376" => {
-            //         self.join_channel("channel").await?;
-            //     }
-            //     "PRIVMSG" => {
-            //         event_handler.on_message_sent(self, message).await;
-            //     }
-            //     "PING" => {
-            //         self.send_pong().await?;
-            //         println!("SENT {:?}", message);
-            //     }
-            //     _ => {
-            //         println!("{:?}", message);
-            //     }
-            // }
         }
 
         Ok(())

@@ -24,6 +24,7 @@ pub enum Command {
     RplEndOfNames,    // 366
     PrivMsg,          // "PRIVEMSG"
     AbortClient,      // "" socket disconnected :)
+    Ping,             // "PING"
     Unimplemented(String),
 }
 
@@ -185,6 +186,7 @@ pub fn match_command(command: String) -> Command {
         "353" => Command::RplNamReply,
         "366" => Command::RplEndOfNames,
         "PRIVMSG" => Command::PrivMsg,
+        "PING" => Command::Ping,
         "" => Command::AbortClient,
         _ => Command::Unimplemented(command),
     }
