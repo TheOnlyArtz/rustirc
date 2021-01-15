@@ -30,7 +30,12 @@ impl EventHandler for Handler {
             _ => {}
         }
     }
-
+    
+    // Fires an unimplemented raw event
+    async fn on_unimplemented(&self, client: &mut Client, message: message_parser::Message) {
+        // Do as you you'd like
+    }
+    
 }
 
 #[tokio::main]
