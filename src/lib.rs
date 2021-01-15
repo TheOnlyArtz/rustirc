@@ -7,4 +7,7 @@ pub mod client;
 #[path = "./event_handler.rs"]
 pub mod event_handler;
 
+#[path = "./event_manager.rs"]
+pub mod event_manager;
+
 

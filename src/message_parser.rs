@@ -1,10 +1,3 @@
-#[derive(Debug)]
-pub struct Message {
-    pub source: Option<String>,
-    pub command: String,
-    pub parameters: Vec<String>,
-}
-
 pub enum ParsingStage {
     Beggining,
     Tags,
@@ -13,9 +6,32 @@ pub enum ParsingStage {
     Parameters,
 }
 
-pub enum ParameterParsingStage {
-    String,
-    General,
+#[derive(Debug)]
+pub enum Command {
+    Notice,           // "NOTICE"
+    RplWelcome,       // 001
+    RplYourHost,      // 002
+    RplCreated,       // 003
+    RplMyInfo,        // 004
+    RplIsSupport,     // 005
+    RplUModeIs,       // 221
+    RplMotdStart,     // 375
+    RplMotd,          // 372
+    RplLUserClient,   // 251
+    RplLUserChannels, // 254
+    RplLUserMe,       // 255
+    RplNamReply,      // 353
+    RplEndOfNames,    // 366
+    PrivMsg,          // "PRIVEMSG"
+    AbortClient,      // "" socket disconnected :)
+    Unimplemented(String),
+}
+
+#[derive(Debug)]
+pub struct Message {
+    pub source: Option<String>,
+    pub command: Command,
+    pub parameters: Vec<String>,
 }
 
 pub fn parse_message(raw: &[u8]) -> Result<Message, &'static str> {
@@ -62,7 +78,7 @@ pub fn parse_message(raw: &[u8]) -> Result<Message, &'static str> {
 
     let message = Message {
         source: Some(source),
-        command,
+        command: match_command(command),
         parameters,
     };
 
@@ -104,7 +120,7 @@ pub fn parse_parameters(parameters: String) -> Vec<String> {
     while peekable_parameters.peek().is_some() {
         let current_char = peekable_parameters.next().unwrap();
         match *current_char as char {
-            ' '|'\r'|'\n' => continue,
+            ' ' | '\r' | '\n' => continue,
             ':' => {
                 let (s, p) = consume_string(peekable_parameters, false);
                 peekable_parameters = p;
@@ -131,7 +147,7 @@ pub fn consume_string(
         let current_char = peekable_raw.next().unwrap();
         if stop_on_space {
             match *current_char as char {
-                ' '|'\r' => {
+                ' ' | '\r' => {
                     break;
                 }
                 _ => {
@@ -150,4 +166,26 @@ pub fn consume_string(
         }
     }
     (string, peekable_raw)
+}
+
+pub fn match_command(command: String) -> Command {
+    match &command[..] {
+        "NOTICE" => Command::Notice,
+        "001" => Command::RplWelcome,
+        "002" => Command::RplYourHost,
+        "003" => Command::RplCreated,
+        "004" => Command::RplMyInfo,
+        "005" => Command::RplIsSupport,
+        "221" => Command::RplUModeIs,
+        "375" => Command::RplMotdStart,
+        "372" => Command::RplMotd,
+        "251" => Command::RplLUserClient,
+        "254" => Command::RplLUserChannels,
+        "255" => Command::RplLUserMe,
+        "353" => Command::RplNamReply,
+        "366" => Command::RplEndOfNames,
+        "PRIVMSG" => Command::PrivMsg,
+        "" => Command::AbortClient,
+        _ => Command::Unimplemented(command),
+    }
 }

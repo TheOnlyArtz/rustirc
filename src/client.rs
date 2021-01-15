@@ -1,24 +1,27 @@
+use super::event_handler::EventHandler;
+use super::event_manager;
+use super::message_parser;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::io::BufReader;
 use tokio::net::TcpStream;
 use tokio::prelude::*;
 use tokio::sync::Mutex;
-use super::event_handler::EventHandler;
-use super::message_parser;
-
 // use tokio::net::tcp::{ReadHalf, WriteHalf};
+
+pub enum ClientState {
+    Uninit,
+    Connecting,
+    Registering,
+    InChannel,
+}
+
 pub struct Client {
     ip: String,
     port: u16,
     event_handler: Option<Arc<dyn EventHandler>>,
+    pub state: ClientState,
     pub stream: Option<Arc<Mutex<IrcStream<TcpStream>>>>,
-}
-
-pub enum ClientState {
-    Connecting,
-    Registering,
-    InChannel,
 }
 
 impl Client {
@@ -27,6 +30,7 @@ impl Client {
             ip: ip.to_string(),
             port,
             event_handler: None,
+            state: ClientState::Uninit,
             stream: None,
         }
     }
@@ -40,48 +44,53 @@ impl Client {
         self.stream = Some(Arc::new(Mutex::new(
             IrcStream::connect(&self.ip, self.port).await?,
         )));
+        self.state = ClientState::Connecting;
         Ok(self)
     }
 
-    pub async fn start(&mut self, username: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
         let event_handler = self.event_handler.take().unwrap();
-        let mut sent_reg = false;
-        tokio::spawn(async {});
 
         loop {
             let stream = Arc::clone(&self.stream.as_ref().unwrap());
             let mut s = stream.try_lock().unwrap();
             let message = s.consume_message().await.unwrap();
-            std::mem::drop(s);
+            std::mem::drop(s); // Drop the lock on the stream
+
             let message = message_parser::parse_message(&message.0).unwrap();
-            let command = &message.command[..];
-
-            if message.command.len() == 0 {
-                break;
+            if let Err(e) = event_manager::handle_event(self, message, &event_handler).await {
+                eprintln!("Error: {}", e);
+                break
             }
 
-            match command {
-                "NOTICE" => {
-                    if !sent_reg {
-                        self.register(username).await?;
-                        println!("Sent register");
-                    }
-                    sent_reg = true;
-                }
-                "376" => {
-                    self.join_channel("channel").await?;
-                }
-                "PRIVMSG" => {
-                    event_handler.on_message_sent(self, message).await;
-                }
-                "PING" => {
-                    self.send_pong().await?;
-                    println!("SENT {:?}", message);
-                }
-                _ => {
-                    println!("{:?}", message);
-                }
-            }
+            // if message.command.len() == 0 {
+            //     break;
+            // }
+
+            // match command {
+            //     "NOTICE" => {
+            //         println!("{:?}", message);
+            //         if !sent_reg {
+            //             // self.register(username).await?;
+
+            //             // println!("Sent register");
+            //         }
+            //         sent_reg = true;
+            //     }
+            //     "376" => {
+            //         self.join_channel("channel").await?;
+            //     }
+            //     "PRIVMSG" => {
+            //         event_handler.on_message_sent(self, message).await;
+            //     }
+            //     "PING" => {
+            //         self.send_pong().await?;
+            //         println!("SENT {:?}", message);
+            //     }
+            //     _ => {
+            //         println!("{:?}", message);
+            //     }
+            // }
         }
 
         Ok(())
@@ -108,7 +117,6 @@ impl Client {
         Ok(())
     }
 }
-
 
 pub struct IrcStream<S> {
     reader: BufReader<S>,
