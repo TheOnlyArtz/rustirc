@@ -37,8 +37,10 @@ pub async fn handle_event(
         Command::Ping => {
             client.send_pong().await?;
         },
+        Command::Unimplemented(_) => {
+            event_handler.on_unimplemented(client, message).await;
+        },
         _ => {
-            println!("{:#?} => {:?}", message.command, message.parameters);
         }
     }
 
