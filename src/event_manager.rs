@@ -14,14 +14,13 @@ pub async fn handle_event(
                 ClientState::Connecting => {
                     // Start the registering process
                     client.state = ClientState::Registering;
-                    client.register("RustIRCBot").await?;
+                    client.register("RustIRCBot").await?; // TODO: make it dynamic veia a Client field
                 }
                 _ => {}
             }
         }
         Command::RplWelcome => {
             // dispatch a welcome event log for now
-            println!("Client has connected successfully to the server");
             client.state = ClientState::InServer;
             event_handler.on_server_connect(client, message).await;
         }
@@ -31,8 +30,11 @@ pub async fn handle_event(
         Command::PrivMsg => {
             event_handler.on_message_sent(client, message).await;
         },
+        Command::Join => {
+            client.state = ClientState::InChannel((&message.parameters[0][1..]).to_owned());
+            event_handler.on_channel_join(client, message).await;
+        }
         Command::Ping => {
-            println!("Sending PING");
             client.send_pong().await?;
         },
         _ => {

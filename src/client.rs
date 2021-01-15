@@ -9,12 +9,13 @@ use tokio::prelude::*;
 use tokio::sync::Mutex;
 // use tokio::net::tcp::{ReadHalf, WriteHalf};
 
+#[derive(Clone)]
 pub enum ClientState {
     Uninit,
     Connecting,
     Registering,
-    InServer,
-    InChannel,
+    InServer, // Won't add a string since it's known by the connection method and should really get more attention
+    InChannel(String),
 }
 
 pub struct Client {
@@ -61,7 +62,7 @@ impl Client {
             let message = message_parser::parse_message(&message.0).unwrap();
             if let Err(e) = event_manager::handle_event(self, message, &event_handler).await {
                 eprintln!("Error: {}", e);
-                break
+                break;
             }
         }
 
@@ -80,7 +81,14 @@ impl Client {
     }
 
     pub async fn send_message(&mut self, msg: String) -> Result<(), Box<dyn Error>> {
-        send_socket_message(self, &format!("PRIVMSG #channel {}", msg)).await?;
+        match self.state.clone() {
+            ClientState::InChannel(name) => {
+                send_socket_message(self, &format!("PRIVMSG #{} {}", &name, msg)).await?;
+            },
+            _ => {
+                panic!("Can't send a message when not in channel!");
+            }
+        }
         Ok(())
     }
 

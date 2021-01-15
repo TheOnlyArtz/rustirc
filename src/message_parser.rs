@@ -25,6 +25,7 @@ pub enum Command {
     PrivMsg,          // "PRIVEMSG"
     AbortClient,      // "" socket disconnected :)
     Ping,             // "PING"
+    Join,             // "JOIN"
     Unimplemented(String),
 }
 
@@ -187,6 +188,7 @@ pub fn match_command(command: String) -> Command {
         "366" => Command::RplEndOfNames,
         "PRIVMSG" => Command::PrivMsg,
         "PING" => Command::Ping,
+        "JOIN" => Command::Join,
         "" => Command::AbortClient,
         _ => Command::Unimplemented(command),
     }
